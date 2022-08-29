@@ -1,9 +1,14 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:post_feed/Screens/Home.dart';
+import 'package:post_feed/main.dart';
 
 
 
@@ -16,13 +21,33 @@ class AddItemsScreen extends StatefulWidget {
 
 class _AddItemsScreenState extends State<AddItemsScreen> {
 
+  String? imagUrl;
+
+
   TextEditingController titleController = TextEditingController();
   TextEditingController descController = TextEditingController();
+
 
   PickedFile? imageFile;
   final imagePicker = ImagePicker();
   bool onChanged = true;
 
+  final _formkey=GlobalKey<FormState>();
+
+
+
+
+
+  @override
+  void initState() {
+
+    // TODO: implement initState
+    super.initState();
+    uploadImage();
+    // updateDataToFireStore();
+    // upload();
+  }
+  final _auth = FirebaseAuth.instance;
 
   @override
   Widget build(BuildContext context) {
@@ -92,25 +117,32 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                 ),
               ),
               SizedBox(height: 20,),
-              TextField(
-                controller: titleController,
-                decoration: InputDecoration(
-                  labelText: "Title",
-                  hintText: "Type Your Title", hintStyle: TextStyle(fontStyle: FontStyle.italic),
-                  border: OutlineInputBorder()
-                ),
-              ),
-              SizedBox(height: 20,),
-              Scrollbar(
-                child: TextField(
-                  controller: descController,
-                  maxLines: 8,
-                  keyboardType: TextInputType.multiline,
-                  decoration: InputDecoration(
-                      labelText: "Description",
-                      hintText: "Type Your Description", hintStyle: TextStyle(fontStyle: FontStyle.italic),
-                      border: OutlineInputBorder(),
-                  ),
+              Form(
+                key: _formkey,
+                child: Column(
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: "Title",
+                        hintText: "Type Your Title", hintStyle: TextStyle(fontStyle: FontStyle.italic),
+                        border: OutlineInputBorder()
+                      ),
+                    ),
+                    SizedBox(height: 20,),
+                    Scrollbar(
+                      child: TextField(
+                        controller: descController,
+                        maxLines: 8,
+                        keyboardType: TextInputType.multiline,
+                        decoration: InputDecoration(
+                          labelText: "Description",
+                          hintText: "Type Your Description", hintStyle: TextStyle(fontStyle: FontStyle.italic),
+                          border: OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
               SizedBox(height: 70,),
@@ -120,6 +152,7 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                 children: [
                   CupertinoButton(
                       onPressed: (){
+                        // print(uploadImage());
                         setState(() {
                           onChanged =! onChanged;
                         });
@@ -135,11 +168,23 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                       minimumSize: MaterialStateProperty.all(Size(MediaQuery.of(context).size.width*0.75, 40))
                     ),
                       child: Text("Add Items"),
-                      onPressed: (){
-                      titleController.text;
-                      descController.text;
-                      Navigator.push(context, MaterialPageRoute(builder: (context)=>
-                          HomeScreen()));
+                      onPressed: () async {
+                        if(_formkey.currentState!.validate()) {
+                          // try {
+                          // print(emailcontroller!.text);
+                          // print(passwordcontroller!.text);
+                          // await _auth
+                          //     .createUserWithEmailAndPassword(
+                          //     email: emailcontroller!.text, password: passwordcontroller!.text).then((uid) => sendDataToFireStore()).catchError((e){
+                          //   print(e);
+                          // });
+                          uploadImage();
+                          // upload();
+                          // print(imagUrl);
+                         await updateDataToFireStore();
+
+                        }
+                      // Navigator.pop(context);
                       }
                   )
                 ],
@@ -157,6 +202,80 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
       imageFile = pickedFile;
     });
   }
+  updateDataToFireStore() async{
+    FirebaseFirestore firebaseFirestore=FirebaseFirestore.instance;
+    User? user=_auth.currentUser;
+    await firebaseFirestore.collection("registerUsers").doc(user!.uid).collection("feedsCollection").doc(uuid.v1()).set({
+      "title":titleController.text,
+      "description":descController.text,
+      "image_url":imagUrl,
 
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Item Added")));
+  }
+  uploadImage() async {
+    var file = File(imageFile!.path); //file*result
+    print(file);
+    var ref = FirebaseStorage.instance.ref().child("imgs").child(uuid.v1());
+    UploadTask uploadTask = ref.putFile(file);
+    final snapshot = await uploadTask.whenComplete(() {});
+    final downloadurl = await snapshot.ref.getDownloadURL();
+    setState(() {
+      imagUrl = downloadurl;
+    });
+
+
+
+    // final _firebaseStorage = FirebaseStorage.instance;
+    // // final _imagePicker = ImagePicker();
+    // // PickedFile image;
+    // //Check Permissions
+    // await Permission.photos.request();
+    //
+    // var permissionStatus = await Permission.photos.status;
+    //
+    // if (permissionStatus.isGranted){
+    //   //Select Image
+    //   // image = await _imagePicker.getImage(source: ImageSource.gallery);
+    //   var file = File(imageFile!.path);
+    //
+    //   if (imageFile != null){
+    //     //Upload to Firebase
+    //     var snapshot = await _firebaseStorage.ref().child("images")
+    //         .child(uuid.v1())
+    //         .putFile(file);
+    //     await snapshot.ref.getDownloadURL().then((value) {
+    //       print(value+"-=-=-=-=-=-==");
+    //       setState(() {
+    //       imagUrl = value;
+    //     });});
+    //     // print(downloadUrl+"------------");
+    //
+    //   } else {
+    //     print('No Image Path Received');
+    //   }
+    // } else {
+    //   print('Permission not granted. Try Again with permission access');
+    // }
+  }
+  // upload() async {
+  //   final _firebaseStorage = FirebaseStorage.instance;
+  //
+  //   var file = File(imageFile!.path);
+  //   if (imageFile != null) {
+  //     var snapshot = await _firebaseStorage.ref()
+  //         .child('images/')
+  //         .putFile(file);
+  //     var downloadUrl = await snapshot.ref.getDownloadURL();
+  //     setState(() {
+  //       imagUrl = downloadUrl;
+  //     });
+  //     print(imagUrl);
+  //
+  //   } else {
+  //     print('Not Found');
+  //   }
+  // }
 
 }
