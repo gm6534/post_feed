@@ -1,3 +1,5 @@
+import 'dart:ffi';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/cupertino.dart';
@@ -5,75 +7,25 @@ import 'package:flutter/material.dart';
 import 'package:post_feed/Constant/constants.dart';
 import 'package:post_feed/Screens/AddItems.dart';
 import 'package:post_feed/Screens/LogIn.dart';
-import 'package:post_feed/main.dart';
 
 class HomeScreen extends StatefulWidget {
-  List<String> item = ["Clients","Designer","Developer","Director",
-    "Employee", "Manager", "Worker","Owner",
-    "Cliesnts","Desisgner","Develosper","Direcstor",
-    "Emplosyee", "Masnager", "Workser","Ownser"
-  ];
+
   @override
   _HomeScreenState createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
 
-  User? user = FirebaseAuth.instance.currentUser;
-  String? imagUrl;
-  String? title;
-  String? desc;
-
-  void reorderData(int oldindex, int newindex){
-    setState(() {
-      if(newindex>oldindex){
-        newindex-=1;
-      }
-      final items =widget.item.removeAt(oldindex);
-      widget.item.insert(newindex, items);
-    });
-  }
-
-  void sorting(){
-    setState(() {
-      widget.item.sort();
-    });
-  }
-
-
-  ///User Image
-
-  getCurrentUserImg() async {
-    DocumentSnapshot snapshot = (await FirebaseFirestore.instance
-        .collection("registerUsers")
-        .doc(user!.uid)
-        .collection("feedsCollection")
-        .doc(uuid.v1())
-        .get()) as DocumentSnapshot<Object?>;
-    Map<String, dynamic> map = snapshot.data() as Map<String, dynamic>;
-    print(map['title']);
-
-
-    setState(() {
-      imagUrl = map['image_url'];
-      title = map['title'];
-      desc = map['description'];
+  User? user=FirebaseAuth.instance.currentUser;
+  List nList = [];
 
 
 
-    });
-    // print(uName);
-  }
-
-
-  ///
 
 
   void initState() {
     super.initState();
     Constants.prefs?.setBool("loggedIn", true);
-    getCurrentUserImg();
-
 
   }
 
@@ -88,10 +40,6 @@ class _HomeScreenState extends State<HomeScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 20),
         ),
         actions: <Widget>[
-          IconButton(icon: Icon(Icons.sort_by_alpha),
-              tooltip:"Sort",
-              onPressed: sorting
-          ),
           CupertinoButton(
               onPressed: (){
                 Constants.prefs?.setBool("loggedIn", false);
@@ -100,24 +48,108 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Icon(Icons.exit_to_app_outlined, color: Colors.white,))
         ],
       ),
-      body: ReorderableListView(
-        children: <Widget>[
-          for(final items in widget.item)
-            Card(
-              color: Colors.white,
-              key: ValueKey(items),
-              elevation: 2,
-              child: ListTile(
-                title: Text("$title"),
-                subtitle: Text("$desc"),
-                leading: CircleAvatar(
-                  backgroundImage: NetworkImage("$imagUrl"),
-                    child: Icon(Icons.work,color: Colors.black,)),
-              ),
-            ),
-        ],
-        onReorder: reorderData,
+      body: RefreshIndicator(
+        onRefresh: () async {
+          _HomeScreenState();
+          ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                elevation: 0,
+            content: Text("Refreshed", textAlign: TextAlign.center,),
+            backgroundColor: Colors.teal,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+            width: 100,
+            // margin: EdgeInsets.only(bottom: 10.0),
+          ));
+        },
+        child: StreamBuilder(
+          stream: FirebaseFirestore.instance
+              .collection("registerUsers")
+              .doc(user!.uid)
+              .collection("feedsCollection")
+              .snapshots(),
+          builder: (context, snapshots) {
+            if (snapshots.connectionState == ConnectionState.active) {
+              if (snapshots.hasData) {
+                QuerySnapshot dataSnapshot =
+                snapshots.data as QuerySnapshot;
 
+                return ReorderableListView.builder(
+                    reverse: false,
+                    itemCount: dataSnapshot.docs.length,
+                    itemBuilder: (context, index) {
+                      Map<String,dynamic> newdata=    dataSnapshot.docs[index].data() as Map<String,dynamic>;
+                        return Card(
+                        key: ValueKey(dataSnapshot.docs),
+                        margin: EdgeInsets.only(bottom: 2),
+                        child: ListTile(
+                          onTap: (){
+                            showDialog(context: context, builder: (context){
+                              return AlertDialog(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text("Details", textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal),),
+                                content: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    SizedBox(height: 15,),
+                                    ListTile(
+                                      leading: CircleAvatar(
+                                        radius: 30,
+                                        backgroundImage: NetworkImage(
+                                            newdata['image_url'].toString()
+                                        ),
+                                      ),
+                                      title: Text(
+                                        newdata['title'].toString(),
+                                        style: TextStyle(fontWeight: FontWeight.bold),),
+                                    ),
+                                    ListTile(
+                                      leading: SizedBox(height: MediaQuery.of(context).size.height,
+                                      width: 61,
+                                      ),
+                                        title: Text(newdata['description'].toString()),
+
+                                    )
+                                  ],
+                                ),
+                              );
+                            });
+                          },
+                            leading: CircleAvatar(
+                              radius: 30,
+                              backgroundImage: NetworkImage(
+                                  newdata['image_url'].toString()
+                              ),
+                            ),
+                            title: Text(
+                              newdata['title'].toString(),
+                              style: TextStyle(fontWeight: FontWeight.bold),),
+                            subtitle: Text(newdata['description'].toString()),
+                          // trailing: ReorderableDragStartListener(
+                          //   // key: ValueKey(dataSnapshot.docs),
+                          //     index: index,
+                          //     child: Icon(Icons.drag_handle),
+                          //     enabled: true,
+                          // ),
+                        ),
+                      );
+
+
+                    }, onReorder: reorderData);
+              } else if (snapshots.hasError) {
+                return const Center(child: Text("Some Error Occured"));
+              } else {
+                return const Center(
+                  child: Text("Say SomeThing"),
+                );
+              }
+            } else {
+              return const Center(
+                child: CircularProgressIndicator(),
+              );
+            }
+          },
+        ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: (){
@@ -129,4 +161,19 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
+  // void reorderData(int oldindex, int newindex){
+  //   setState(() {
+  //     if(newindex>oldindex){
+  //       newindex-=1;
+  //     }
+  //   });
+  // }
+void reorderData(oldIndex, newIndex) => setState(() {
+  final index =
+  newIndex > oldIndex ? newIndex -= 1 : newIndex;
+  //  > oldIndex ? newIndex - 1 : newIndex;
+  var dataSnapshot;
+  final user = dataSnapshot.docs.removeAt(oldIndex);
+  dataSnapshot.docs.insert(index, user);
+});
 }

@@ -179,9 +179,12 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
                           //   print(e);
                           // });
                           uploadImage();
+                          print("dscdvfscd");
+                          print(uploadImage());
                           // upload();
-                          // print(imagUrl);
-                         await updateDataToFireStore();
+                          print(imagUrl);
+                          print("dscdvfscd");
+                          updateDataToFireStore();
 
                         }
                       // Navigator.pop(context);
@@ -216,7 +219,8 @@ class _AddItemsScreenState extends State<AddItemsScreen> {
   }
   uploadImage() async {
     var file = File(imageFile!.path); //file*result
-    print(file);
+    // print("dscdvfscd");
+    // print(file);
     var ref = FirebaseStorage.instance.ref().child("imgs").child(uuid.v1());
     UploadTask uploadTask = ref.putFile(file);
     final snapshot = await uploadTask.whenComplete(() {});
